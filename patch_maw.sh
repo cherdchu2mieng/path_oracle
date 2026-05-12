@@ -167,5 +167,29 @@ export async function cmdFleetInit() {
 INNER_EOF
 echo "✓ Updated fleet-init-scan.ts (Full Slugs Support)"
 
+# --- ไฟล์ที่ 5: อัปเดต ~/.config/maw/maw.config.json (Auto-config Injection) ---
+python3 -c "
+import json, os
+path = os.path.expanduser('~/.config/maw/maw.config.json')
+if os.path.exists(path):
+    with open(path, 'r') as f:
+        try: data = json.load(f)
+        except: data = {}
+    if 'groups' not in data:
+        data['groups'] = {
+            'pulse': {'session': 'pulse', 'order': 1},
+            'hermes': {'session': 'hermes', 'order': 2},
+            'neo': {'session': 'neo', 'order': 3},
+            'homekeeper': {'session': 'homekeeper', 'order': 4}
+        }
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+        print('✓ Added default groups to maw.config.json')
+    else:
+        print('i groups already exists in maw.config.json (Skipped)')
+else:
+    print('! maw.config.json not found (Skipped config update)')
+"
+
 echo -e "\nPatch complete. Running rebuild..."
 cd "$MAW_PATH" && bun run build && echo "✓ Build complete. Restart maw-js sessions to see changes."
