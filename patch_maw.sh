@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# สคริปต์สำหรับอัปเดต maw-js: รองรับ Full Slugs และ Configurable Groups
+# สคริปต์สำหรับอัปเดต maw-js: รองรับ Full Slugs, Configurable Groups และ Auto-resize Tmux
 # วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh [path_to_maw_js]
 
 # 1. ระบุตำแหน่งของโปรเจกต์ maw-js
@@ -22,7 +22,7 @@ with open(path, 'r') as f: content = f.read()
 if 'groups?:' not in content:
     content = content.replace('  pin?: string;', '  pin?: string;\n  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;')
     with open(path, 'w') as f: f.write(content)
-" && echo "✓ Updated types.ts"
+" && echo "✓ Updated types.ts (Configurable Groups)"
 
 # --- ไฟล์ที่ 2: src/config/validate-ext.ts ---
 python3 -c "
@@ -41,9 +41,20 @@ insertion = \"\"\"
 if 'if (\"groups\" in raw)' not in content:
     content = content.replace('  // githubOrg: string', insertion + '  // githubOrg: string')
     with open(path, 'w') as f: f.write(content)
-" && echo "✓ Updated validate-ext.ts"
+" && echo "✓ Updated validate-ext.ts (Validation Pass-through)"
 
-# --- ไฟล์ที่ 3: src/commands/plugins/fleet/fleet-init-scan.ts ---
+# --- ไฟล์ที่ 3: src/core/transport/tmux-class.ts (FIX: จุดไข่ปลา) ---
+python3 -c "
+path = '$MAW_PATH/src/core/transport/tmux-class.ts'
+with open(path, 'r') as f: content = f.read()
+old_line = 'await this.setOption(name, \"renumber-windows\", \"on\");'
+new_line = old_line + '\\n    await this.setOption(name, \"window-size\", \"largest\");'
+if '\"window-size\", \"largest\"' not in content:
+    content = content.replace(old_line, new_line)
+    with open(path, 'w') as f: f.write(content)
+" && echo "✓ Updated tmux-class.ts (Auto-resize Fix)"
+
+# --- ไฟล์ที่ 4: src/commands/plugins/fleet/fleet-init-scan.ts ---
 cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
@@ -98,19 +109,19 @@ export async function cmdFleetInit() {
 
     const worktrees: { name: string; path: string; repo: string }[] = [];
     try {
-      const wtOut = await hostExec(`ls -d ${parentDir}/${repoName}.wt-* 2>/dev/null || true`);
+      const wtOut = await hostExec(\`ls -d \${parentDir}/\${repoName}.wt-* 2>/dev/null || true\`);
       const usedNames = new Set<string>();
       for (const wtPath of wtOut.split("\n").filter(Boolean)) {
         const wtBase = wtPath.split("/").pop()!;
-        const suffix = wtBase.replace(`${repoName}.wt-`, "");
+        const suffix = wtBase.replace(\`\${repoName}.wt-\`, "");
         const taskPart = suffix.replace(/^\d+-/, "");
-        let windowName = `${oracleName}-${taskPart}`;
-        if (usedNames.has(windowName)) windowName = `${oracleName}-${suffix}`; 
+        let windowName = \`\${oracleName}-\${taskPart}\`;
+        if (usedNames.has(windowName)) windowName = \`\${oracleName}-\${suffix}\`; 
         usedNames.add(windowName);
         worktrees.push({
           name: windowName,
           path: wtPath,
-          repo: `${domain}/${org}/${wtBase}`, 
+          repo: \`\${domain}/\${org}/\${wtBase}\`, 
         });
       }
     } catch { }
@@ -118,11 +129,11 @@ export async function cmdFleetInit() {
     oracleRepos.push({
       name: oracleName,
       path: repoPath,
-      repo: `${domain}/${org}/${repoName}`, 
+      repo: \`\${domain}/\${org}/\${repoName}\`, 
       worktrees,
     });
 
-    console.log(`  found: ${oracleName.padEnd(15)} ${domain}/${org}/${repoName}`);
+    console.log(\`  found: \${oracleName.padEnd(15)} \${domain}/\${org}/\${repoName}\`);
   }
 
   const sessionMap = new Map<string, { order: number; windows: FleetWindow[] }>();
@@ -131,19 +142,19 @@ export async function cmdFleetInit() {
     const key = group.session;
     if (!sessionMap.has(key)) sessionMap.set(key, { order: group.order, windows: [] });
     const sess = sessionMap.get(key)!;
-    sess.windows.push({ name: `${oracle.name}-oracle`, repo: oracle.repo });
+    sess.windows.push({ name: \`\${oracle.name}-oracle\`, repo: oracle.repo });
     for (const wt of oracle.worktrees) sess.windows.push({ name: wt.name, repo: wt.repo });
   }
 
-  console.log(`\n  \x1b[36mWriting fleet configs...\x1b[0m\n`);
+  console.log(\`\n  \x1b[36mWriting fleet configs...\x1b[0m\n`);
   const sorted = [...sessionMap.entries()].sort((a, b) => a[1].order - b[1].order);
 
   for (const [groupName, data] of sorted) {
     const paddedNum = String(data.order).padStart(2, "0");
-    const sessionName = `${paddedNum}-${groupName}`;
+    const sessionName = \`\${paddedNum}-\${groupName}\`;
     const config: FleetSession = { name: sessionName, windows: data.windows };
-    await Bun.write(join(fleetDir, `${sessionName}.json`), JSON.stringify(config, null, 2) + "\n");
-    console.log(`  \x1b[32m✓\x1b[0m ${sessionName}.json — ${data.windows.length} windows`);
+    await Bun.write(join(fleetDir, \`\${sessionName}.json\`), JSON.stringify(config, null, 2) + "\n");
+    console.log(\`  \x1b[32m✓\x1b[0m \${sessionName}.json — \${data.windows.length} windows\`);
   }
 
   if (oracleRepos.length > 0) {
@@ -151,8 +162,10 @@ export async function cmdFleetInit() {
     await Bun.write(join(fleetDir, "99-overview.json"), JSON.stringify(overviewConfig, null, 2) + "\n");
   }
 
-  console.log(`\n  \x1b[32m${sorted.length + 1} fleet configs written to fleet/\x1b[0m`);
+  console.log(\`\n  \x1b[32m\${sorted.length + 1} fleet configs written to fleet/\x1b[0m\`);
 }
 INNER_EOF
-echo "✓ Updated fleet-init-scan.ts"
-echo -e "\nPatch complete. Please rebuild/restart maw-js."
+echo "✓ Updated fleet-init-scan.ts (Full Slugs Support)"
+
+echo -e "\nPatch complete. Running rebuild..."
+cd "$MAW_PATH" && bun run build && echo "✓ Build complete. Restart maw-js sessions to see changes."
