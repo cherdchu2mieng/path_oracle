@@ -1,0 +1,56 @@
+{
+  "host": "local",
+  "port": 3456,
+  "oracleUrl": "http://localhost:47779",
+  "env": {},
+  "commands": {
+    "default": "/home/a2it49072/.nvm/versions/node/v24.15.0/bin/gemini",
+    "it49072": "/home/a2it49072/.nvm/versions/node/v24.15.0/bin/gemini",
+    "gemi": "/home/a2it49072/.nvm/versions/node/v24.15.0/bin/gemini",
+    "bird": "/home/a2it49072/.nvm/versions/node/v24.15.0/bin/gemini",
+    "sky": "/home/a2it49072/.nvm/versions/node/v24.15.0/bin/gemini"
+  },
+  "sessions": {
+    "it49072": "01-it49072",
+    "vault": "02-vault",
+    "gemi": "03-gemi",
+    "bird": "04-bird",
+    "sky": "05-sky"
+  },
+  "node": "local",
+  "agents": {
+    "gemi": "local",
+    "bird": "local",
+    "sky": "local",
+    "live": "local",
+    "gemi-oracle": "local",
+    "vault-oracle": "local",
+    "infographic-oracle": "local",
+    "sky-oracle": "local",
+    "infographic": "local",
+    "it49072-oracle": "local",
+    "it49072": "local"
+  },
+  "groups": {
+    "it49072": {
+      "session": "it49072",
+      "order": 1
+    },
+    "vault": {
+      "session": "vault",
+      "order": 2
+    },
+    "gemi": {
+      "session": "gemi",
+      "order": 3
+    },
+    "infographic": {
+      "session": "infographic",
+      "order": 4
+    },
+    "sky": {
+      "session": "sky",
+      "order": 5
+    }
+  }
+}
