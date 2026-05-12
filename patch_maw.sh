@@ -18,69 +18,69 @@ if [ ! -d "$MAW_PATH" ]; then
     exit 1
 fi
 
+MAW_PATH=$(realpath "$MAW_PATH")
+
 echo "🚀 Starting Final Patch for maw-js at $MAW_PATH..."
 
-# --- 1. Patch src/config/types.ts (เพิ่ม Interface) ---
-python3 -c "
-path = /src/config/types.ts"
-with open(path, 'r') as f: content = f.read()
+# --- 1. Patch src/config/types.ts ---
+python3 - <<PY_EOF
+import os
+path = os.path.join('$MAW_PATH', 'src/config/types.ts')
+content = open(path).read()
 if 'groups?:' not in content:
-    field = '  /** Grouping and ordering for fleet initialization */
-  groups?: Record<string, { session: string; order: number }>;'
-    content = content.replace('export interface MawConfig {', 'export interface MawConfig {
-' + field)
-    with open(path, 'w') as f: f.write(content)
+    field = '  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;'
+    content = content.replace('export interface MawConfig {', 'export interface MawConfig {\n' + field)
+    open(path, 'w').write(content)
     print('✓ Updated types.ts')
 else:
     print('i types.ts already patched')
-"
+PY_EOF
 
-# --- 2. Patch src/config/validate-ext.ts (เพิ่ม Validator ภายใน Function) ---
-python3 -c "
-path = /src/config/validate-ext.ts"
-with open(path, 'r') as f: content = f.read()
-insertion = \"\"\"
-  if (\\\"groups\\\" in raw) {
-    if (raw.groups && typeof raw.groups === \"object\" && !Array.isArray(raw.groups)) {
+# --- 2. Patch src/config/validate-ext.ts ---
+python3 - <<PY_EOF
+import os
+path = os.path.join('$MAW_PATH', 'src/config/validate-ext.ts')
+content = open(path).read()
+insertion = """
+  if (\\"groups\\" in raw) {
+    if (raw.groups && typeof raw.groups === \\"object\\" && !Array.isArray(raw.groups)) {
       result.groups = raw.groups;
     } else {
-      warn(\\\"groups\\\", \\\"must be an object\\\");
+      warn(\\"groups\\", \\"must be an object\\");
     }
   }
-\"\"\"
+"""
 if 'if ("groups" in raw)' not in content:
     target = 'function validateExtFields(raw: any, result: any, warn: any) {'
     if target in content:
         content = content.replace(target, target + insertion)
-        with open(path, 'w') as f: f.write(content)
+        open(path, 'w').write(content)
         print('✓ Updated validate-ext.ts')
     else:
-        content = content.replace('  return result;', insertion + '
-  return result;')
-        with open(path, 'w') as f: f.write(content)
+        content = content.replace('  return result;', insertion + '\n  return result;')
+        open(path, 'w').write(content)
         print('✓ Updated validate-ext.ts (via fallback)')
 else:
     print('i validate-ext.ts already patched')
-"
+PY_EOF
 
-# --- 3. Patch src/core/transport/tmux-class.ts (แก้จุดไข่ปลา) ---
-python3 -c "
-path = /src/core/transport/tmux-class.ts"
-with open(path, 'r') as f: content = f.read()
-if '\window-size\, \largest' not in content:
-    old = 'await this.setOption(name, 
-enumber-windows\, \on\);'
-    new = old + '
-    await this.setOption(name, \window-size\, \largest\);'
+# --- 3. Patch src/core/transport/tmux-class.ts ---
+python3 - <<PY_EOF
+import os
+path = os.path.join('$MAW_PATH', 'src/core/transport/tmux-class.ts')
+content = open(path).read()
+if '"window-size", "largest"' not in content:
+    old = 'await this.setOption(name, "renumber-windows", "on");'
+    new = old + '\n    await this.setOption(name, "window-size", "largest");'
     content = content.replace(old, new)
-    with open(path, 'w') as f: f.write(content)
+    open(path, 'w').write(content)
     print('✓ Updated tmux-class.ts')
 else:
     print('i tmux-class.ts already patched')
-"
+PY_EOF
 
 # --- 4. เขียนไฟล์ fleet-init-scan.ts ---
-cat << 'INNER_EOF' > /src/commands/plugins/fleet/fleet-init-scan.ts
+cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { hostExec, loadConfig } from "../../../sdk";
@@ -193,26 +193,22 @@ INNER_EOF
 echo "✓ Updated fleet-init-scan.ts (No escaped backticks)"
 
 # --- 5. อัปเดต maw.config.json ---
-python3 -c "
+python3 - <<PY_EOF
 import json, os
 path = os.path.expanduser('~/.config/maw/maw.config.json')
-if os.path.exists(path):
-    with open(path, 'r') as f:
-        try: data = json.load(f)
-        except: data = {}
-    if 'groups' not in data:
-        data['groups'] = {
-            'pulse': {'session': 'pulse', 'order': 1},
-            'hermes': {'session': 'hermes', 'order': 2},
-            'neo': {'session': 'neo', 'order': 3},
-            'homekeeper': {'session': 'homekeeper', 'order': 4}
-        }
-        with open(path, 'w') as f:
-            json.dump(data, f, indent=2)
-        print('✓ Added default groups to maw.config.json')
-    else:
-        print('i groups already exists in maw.config.json')
-"
+data = json.load(open(path)) if os.path.exists(path) else {}
+if 'groups' not in data:
+    data['groups'] = {
+        'pulse': {'session': 'pulse', 'order': 1},
+        'hermes': {'session': 'hermes', 'order': 2},
+        'neo': {'session': 'neo', 'order': 3},
+        'homekeeper': {'session': 'homekeeper', 'order': 4}
+    }
+    json.dump(data, open(path, 'w'), indent=2)
+    print('✓ Added default groups to maw.config.json')
+else:
+    print('i groups already exists in maw.config.json')
+PY_EOF
 
 echo -e "\n📦 Running rebuild..."
 cd "$MAW_PATH"
