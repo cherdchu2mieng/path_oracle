@@ -26,3 +26,6 @@ chmod +x patch_maw.sh
   }
 }
 ```
+
+### 2. `maw.config.example.json`
+ตัวอย่างไฟล์คอนฟิกสำหรับ `~/.config/maw/maw.config.json` ที่มีการเพิ่มส่วนของ `groups` เข้าไปแล้ว
