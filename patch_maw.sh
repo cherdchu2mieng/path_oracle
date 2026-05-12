@@ -68,7 +68,8 @@ python3 -c "
 path = /src/core/transport/tmux-class.ts"
 with open(path, 'r') as f: content = f.read()
 if '\window-size\, \largest' not in content:
-    old = 'await this.setOption(name, enumber-windows\, \on\);'
+    old = 'await this.setOption(name, 
+enumber-windows\, \on\);'
     new = old + '
     await this.setOption(name, \window-size\, \largest\);'
     content = content.replace(old, new)
