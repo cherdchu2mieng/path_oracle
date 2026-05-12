@@ -2,13 +2,19 @@
 
 # สคริปต์สำหรับอัปเดต maw-js: เวอร์ชันแก้ไขสมบูรณ์ (Final Fix)
 # รองรับ: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
-# วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh [path_to_maw_js]
+# วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh <path_to_maw_js>
 
-DEFAULT_PATH="/home/a2it49072/ghq/github.com/Soul-Brews-Studio/maw-js"
-MAW_PATH="${1:-$DEFAULT_PATH}"
+MAW_PATH="$1"
+
+if [ -z "$MAW_PATH" ]; then
+    echo -e "\x1b[31mError: Missing maw-js path.\x1b[0m"
+    echo -e "Usage: ./patch_maw.sh <path_to_maw_js>"
+    echo -e "Example: ./patch_maw.sh ~/ghq/github.com/Soul-Brews-Studio/maw-js"
+    exit 1
+fi
 
 if [ ! -d "$MAW_PATH" ]; then
-    echo "Error: Path $MAW_PATH not found."
+    echo -e "\x1b[31mError: Path $MAW_PATH not found.\x1b[0m"
     exit 1
 fi
 
@@ -35,7 +41,7 @@ path = /src/config/validate-ext.ts"
 with open(path, 'r') as f: content = f.read()
 insertion = \"\"\"
   if (\\\"groups\\\" in raw) {
-    if (raw.groups && typeof raw.groups === \\\"object\\\" && !Array.isArray(raw.groups)) {
+    if (raw.groups && typeof raw.groups === \"object\" && !Array.isArray(raw.groups)) {
       result.groups = raw.groups;
     } else {
       warn(\\\"groups\\\", \\\"must be an object\\\");
