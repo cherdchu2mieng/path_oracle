@@ -15,17 +15,50 @@ chmod +x patch_maw.sh
 ./patch_maw.sh [path_to_maw_js]
 ```
 
-## Configuration
-หลังจากรัน patch แล้ว สามารถกำหนดค่าใน `maw.config.json` ได้ดังนี้:
-
-```json
-{
-  "groups": {
-    "gemi": { "session": "gemi", "order": 1 },
-    "infographic": { "session": "infographic", "order": 2 }
-  }
-}
-```
-
 ### 2. `maw.config.example.json`
 ตัวอย่างไฟล์คอนฟิกสำหรับ `~/.config/maw/maw.config.json` ที่มีการเพิ่มส่วนของ `groups` เข้าไปแล้ว
+
+---
+
+## คู่มือการตั้งค่า Fleet (The Golden Sequence) 🛠️
+
+เมื่อทำการ Patch ระบบเรียบร้อยแล้ว ให้ทำตามลำดับขั้นตอนดังนี้เพื่อให้ Fleet ทำงานได้อย่างถูกต้อง:
+
+### 1. ค้นหา Oracle Repos
+```bash
+maw oracle scan
+```
+*   **หน้าที่**: สแกนหาโปรเจกต์ Oracle ในเครื่องและสร้าง `oracles.json`
+
+### 2. สร้างไฟล์คอนฟิก Fleet
+```bash
+maw fleet init
+```
+*   **หน้าที่**: ลบไฟล์เก่าใน `~/.config/maw/fleet/` และสร้างไฟล์ใหม่โดยอิงจาก `groups` ใน `maw.config.json`
+*   **ผลลัพธ์**: จะได้ไฟล์เลขลำดับ เช่น `01-gemi.json`, `02-infographic.json`
+
+### 3. จัดระเบียบเลข (ทางเลือก)
+```bash
+maw fleet renumber
+```
+*   **หน้าที่**: ตรวจสอบและเรียงลำดับเลขหน้าไฟล์ `.json` ให้สวยงาม (01, 02, 03...) กรณีที่มีการเพิ่มไฟล์ด้วยมือหรือเลขซ้ำ
+
+### 4. ปลุก Oracle ทั้งหมด
+```bash
+maw wake all
+```
+*   **หน้าที่**: เริ่มการทำงานของ Oracle ทุกตัวตามคอนฟิก และบันทึกสถานะลงใน `maw.config.json`
+
+---
+
+## กรณีที่มีการสร้าง Oracle ใหม่ 🌊
+
+หากมีการเพิ่ม Oracle Repo ใหม่ในเครื่อง ให้รันขั้นตอนดังนี้:
+
+1.  **สแกนใหม่**: รัน `maw oracle scan` เพื่อให้ระบบรู้จัก Repo ใหม่
+2.  **อัปเดต Config**: เพิ่มชื่อ Oracle ใหม่ลงใน `groups` ของ `maw.config.json` หากต้องการระบุลำดับ (Order) ที่แน่นอน
+3.  **สร้าง Fleet ใหม่**: รัน `maw fleet init` เพื่อสร้างไฟล์ `.json` สำหรับ Oracle ใหม่
+4.  **ปลุกระบบ**: รัน `maw wake all` หรือ `maw wake [ชื่อ-oracle]` เพื่อเริ่มใช้งาน
+
+---
+**หมายเหตุ**: การรัน `maw fleet init` จะลบไฟล์ในโฟลเดอร์ `fleet/` เดิมทิ้งเสมอ เพื่อป้องกันความสับสนของลำดับเลข
