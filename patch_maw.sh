@@ -16,11 +16,13 @@ echo "🚀 Starting Final Patch for maw-js at $MAW_PATH..."
 
 # --- 1. Patch src/config/types.ts (เพิ่ม Interface) ---
 python3 -c "
-path = '$MAW_PATH/src/config/types.ts'
+path = /src/config/types.ts"
 with open(path, 'r') as f: content = f.read()
 if 'groups?:' not in content:
-    field = '  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;'
-    content = content.replace('export interface MawConfig {', 'export interface MawConfig {\n' + field)
+    field = '  /** Grouping and ordering for fleet initialization */
+  groups?: Record<string, { session: string; order: number }>;'
+    content = content.replace('export interface MawConfig {', 'export interface MawConfig {
+' + field)
     with open(path, 'w') as f: f.write(content)
     print('✓ Updated types.ts')
 else:
@@ -29,7 +31,7 @@ else:
 
 # --- 2. Patch src/config/validate-ext.ts (เพิ่ม Validator ภายใน Function) ---
 python3 -c "
-path = '$MAW_PATH/src/config/validate-ext.ts'
+path = /src/config/validate-ext.ts"
 with open(path, 'r') as f: content = f.read()
 insertion = \"\"\"
   if (\\\"groups\\\" in raw) {
@@ -40,16 +42,15 @@ insertion = \"\"\"
     }
   }
 \"\"\"
-if 'if (\"groups\" in raw)' not in content:
-    # แทรกไว้ข้างในฟังก์ชัน validateExtFields (หาจุดเริ่ม { แล้วแทรกหลังจุดนั้น)
+if 'if ("groups" in raw)' not in content:
     target = 'function validateExtFields(raw: any, result: any, warn: any) {'
     if target in content:
         content = content.replace(target, target + insertion)
         with open(path, 'w') as f: f.write(content)
         print('✓ Updated validate-ext.ts')
     else:
-        # Fallback: แทรกก่อน return ถ้าหาหัวฟังก์ชันไม่เจอ
-        content = content.replace('  return result;', insertion + '\n  return result;')
+        content = content.replace('  return result;', insertion + '
+  return result;')
         with open(path, 'w') as f: f.write(content)
         print('✓ Updated validate-ext.ts (via fallback)')
 else:
@@ -58,11 +59,12 @@ else:
 
 # --- 3. Patch src/core/transport/tmux-class.ts (แก้จุดไข่ปลา) ---
 python3 -c "
-path = '$MAW_PATH/src/core/transport/tmux-class.ts'
+path = /src/core/transport/tmux-class.ts"
 with open(path, 'r') as f: content = f.read()
-if '\"window-size\", \"largest\"' not in content:
-    old = 'await this.setOption(name, \"renumber-windows\", \"on\");'
-    new = old + '\\n    await this.setOption(name, \"window-size\", \"largest\");'
+if '\window-size\, \largest' not in content:
+    old = 'await this.setOption(name, enumber-windows\, \on\);'
+    new = old + '
+    await this.setOption(name, \window-size\, \largest\);'
     content = content.replace(old, new)
     with open(path, 'w') as f: f.write(content)
     print('✓ Updated tmux-class.ts')
@@ -70,8 +72,8 @@ else:
     print('i tmux-class.ts already patched')
 "
 
-# --- 4. เขียนไฟล์ fleet-init-scan.ts (ลบ backslash ที่เกินออกทั้งหมด) ---
-cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
+# --- 4. เขียนไฟล์ fleet-init-scan.ts ---
+cat << 'INNER_EOF' > /src/commands/plugins/fleet/fleet-init-scan.ts
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { hostExec, loadConfig } from "../../../sdk";
@@ -132,12 +134,12 @@ export async function cmdFleetInit() {
         const suffix = wtBase.replace(`${repoName}.wt-`, "");
         const taskPart = suffix.replace(/^\d+-/, "");
         let windowName = `${oracleName}-${taskPart}`;
-        if (usedNames.has(windowName)) windowName = `${oracleName}-${suffix}`; 
+        if (usedNames.has(windowName)) windowName = `${oracleName}-${suffix}`;
         usedNames.add(windowName);
         worktrees.push({
           name: windowName,
           path: wtPath,
-          repo: `${domain}/${org}/${wtBase}`, 
+          repo: `${domain}/${org}/${wtBase}`,
         });
       }
     } catch { }
@@ -145,7 +147,7 @@ export async function cmdFleetInit() {
     oracleRepos.push({
       name: oracleName,
       path: repoPath,
-      repo: `${domain}/${org}/${repoName}`, 
+      repo: `${domain}/${org}/${repoName}`,
       worktrees,
     });
 
@@ -183,7 +185,7 @@ export async function cmdFleetInit() {
 INNER_EOF
 echo "✓ Updated fleet-init-scan.ts (No escaped backticks)"
 
-# --- 5. อัปเดต maw.config.json (Auto-Injection) ---
+# --- 5. อัปเดต maw.config.json ---
 python3 -c "
 import json, os
 path = os.path.expanduser('~/.config/maw/maw.config.json')
@@ -206,4 +208,18 @@ if os.path.exists(path):
 "
 
 echo -e "\n📦 Running rebuild..."
-cd "$MAW_PATH" && bun run build && echo -e "\n✅ Patch Complete! Please run 'maw kill --all && maw wake all' to restart."
+cd "$MAW_PATH"
+
+if [ ! -d "node_modules" ]; then
+    echo "i node_modules not found, running bun install..."
+    bun install
+fi
+
+if bun run build; then
+    echo -e "\n✅ Patch & Build Complete!"
+    echo -e "👉 Please run: \x1b[33mmaw kill --all && maw wake all\x1b[0m to restart with new logic."
+else
+    echo -e "\n❌ Error: 'bun run build' failed."
+    echo -e "Please check the errors above. You might need to run 'bun install' manually."
+    exit 1
+fi
