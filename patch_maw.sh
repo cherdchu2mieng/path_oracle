@@ -1,60 +1,68 @@
 #!/bin/bash
 
-# สคริปต์สำหรับอัปเดต maw-js: รองรับ Full Slugs, Configurable Groups และ Auto-resize Tmux
+# สคริปต์สำหรับอัปเดต maw-js: ฉบับปรับปรุงใหม่ (Robust Version)
+# แก้ไข: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
 # วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh [path_to_maw_js]
 
-# 1. ระบุตำแหน่งของโปรเจกต์ maw-js
 DEFAULT_PATH="/home/a2it49072/ghq/github.com/Soul-Brews-Studio/maw-js"
 MAW_PATH="${1:-$DEFAULT_PATH}"
 
 if [ ! -d "$MAW_PATH" ]; then
     echo "Error: Path $MAW_PATH not found."
-    echo "Usage: ./patch_maw.sh [path_to_maw_js]"
     exit 1
 fi
 
-echo "Patching maw-js at $MAW_PATH..."
+echo "🚀 Starting Robust Patch for maw-js at $MAW_PATH..."
 
-# --- ไฟล์ที่ 1: src/config/types.ts ---
+# --- 1. Patch src/config/types.ts (เพิ่ม Interface) ---
 python3 -c "
 path = '$MAW_PATH/src/config/types.ts'
 with open(path, 'r') as f: content = f.read()
 if 'groups?:' not in content:
-    content = content.replace('  pin?: string;', '  pin?: string;\n  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;')
+    field = '  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;'
+    content = content.replace('export interface MawConfig {', 'export interface MawConfig {\n' + field)
     with open(path, 'w') as f: f.write(content)
-" && echo "✓ Updated types.ts (Configurable Groups)"
+    print('✓ Updated types.ts')
+else:
+    print('i types.ts already patched')
+"
 
-# --- ไฟล์ที่ 2: src/config/validate-ext.ts ---
+# --- 2. Patch src/config/validate-ext.ts (เพิ่ม Validator) ---
 python3 -c "
 path = '$MAW_PATH/src/config/validate-ext.ts'
 with open(path, 'r') as f: content = f.read()
 insertion = \"\"\"
-  // groups: Record<string, { session: string; order: number }>
-  if (\"groups\" in raw) {
-    if (raw.groups && typeof raw.groups === \"object\" && !Array.isArray(raw.groups)) {
+  if (\\\"groups\\\" in raw) {
+    if (raw.groups && typeof raw.groups === \\\"object\\\" && !Array.isArray(raw.groups)) {
       result.groups = raw.groups;
     } else {
-      warn(\"groups\", \"must be an object\");
+      warn(\\\"groups\\\", \\\"must be an object\\\");
     }
   }
 \"\"\"
 if 'if (\"groups\" in raw)' not in content:
-    content = content.replace('  // githubOrg: string', insertion + '  // githubOrg: string')
+    content = content.replace('  return result;', insertion + '\n  return result;')
     with open(path, 'w') as f: f.write(content)
-" && echo "✓ Updated validate-ext.ts (Validation Pass-through)"
+    print('✓ Updated validate-ext.ts')
+else:
+    print('i validate-ext.ts already patched')
+"
 
-# --- ไฟล์ที่ 3: src/core/transport/tmux-class.ts (FIX: จุดไข่ปลา) ---
+# --- 3. Patch src/core/transport/tmux-class.ts (แก้จุดไข่ปลา) ---
 python3 -c "
 path = '$MAW_PATH/src/core/transport/tmux-class.ts'
 with open(path, 'r') as f: content = f.read()
-old_line = 'await this.setOption(name, \"renumber-windows\", \"on\");'
-new_line = old_line + '\\n    await this.setOption(name, \"window-size\", \"largest\");'
 if '\"window-size\", \"largest\"' not in content:
-    content = content.replace(old_line, new_line)
+    old = 'await this.setOption(name, \"renumber-windows\", \"on\");'
+    new = old + '\\n    await this.setOption(name, \"window-size\", \"largest\");'
+    content = content.replace(old, new)
     with open(path, 'w') as f: f.write(content)
-" && echo "✓ Updated tmux-class.ts (Auto-resize Fix)"
+    print('✓ Updated tmux-class.ts')
+else:
+    print('i tmux-class.ts already patched')
+"
 
-# --- ไฟล์ที่ 4: src/commands/plugins/fleet/fleet-init-scan.ts ---
+# --- 4. เขียนไฟล์ fleet-init-scan.ts ใหม่ทั้งหมด (Full Slug & Domain) ---
 cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
@@ -165,9 +173,9 @@ export async function cmdFleetInit() {
   console.log(\`\n  \x1b[32m\${sorted.length + 1} fleet configs written to fleet/\x1b[0m\`);
 }
 INNER_EOF
-echo "✓ Updated fleet-init-scan.ts (Full Slugs Support)"
+echo "✓ Updated fleet-init-scan.ts"
 
-# --- ไฟล์ที่ 5: อัปเดต ~/.config/maw/maw.config.json (Auto-config Injection) ---
+# --- 5. อัปเดต maw.config.json ---
 python3 -c "
 import json, os
 path = os.path.expanduser('~/.config/maw/maw.config.json')
@@ -186,10 +194,8 @@ if os.path.exists(path):
             json.dump(data, f, indent=2)
         print('✓ Added default groups to maw.config.json')
     else:
-        print('i groups already exists in maw.config.json (Skipped)')
-else:
-    print('! maw.config.json not found (Skipped config update)')
+        print('i groups already exists in maw.config.json')
 "
 
-echo -e "\nPatch complete. Running rebuild..."
-cd "$MAW_PATH" && bun run build && echo "✓ Build complete. Restart maw-js sessions to see changes."
+echo -e "\n📦 Running rebuild..."
+cd "$MAW_PATH" && bun run build && echo -e "\n✅ Patch Complete! Please run 'maw kill --all && maw wake all' to restart."
