@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# สคริปต์สำหรับอัปเดต maw-js: ฉบับปรับปรุงใหม่ (Robust Version)
-# แก้ไข: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
+# สคริปต์สำหรับอัปเดต maw-js: เวอร์ชันแก้ไขสมบูรณ์ (Final Fix)
+# รองรับ: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
 # วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh [path_to_maw_js]
 
 DEFAULT_PATH="/home/a2it49072/ghq/github.com/Soul-Brews-Studio/maw-js"
@@ -12,7 +12,7 @@ if [ ! -d "$MAW_PATH" ]; then
     exit 1
 fi
 
-echo "🚀 Starting Robust Patch for maw-js at $MAW_PATH..."
+echo "🚀 Starting Final Patch for maw-js at $MAW_PATH..."
 
 # --- 1. Patch src/config/types.ts (เพิ่ม Interface) ---
 python3 -c "
@@ -27,7 +27,7 @@ else:
     print('i types.ts already patched')
 "
 
-# --- 2. Patch src/config/validate-ext.ts (เพิ่ม Validator) ---
+# --- 2. Patch src/config/validate-ext.ts (เพิ่ม Validator ภายใน Function) ---
 python3 -c "
 path = '$MAW_PATH/src/config/validate-ext.ts'
 with open(path, 'r') as f: content = f.read()
@@ -41,9 +41,17 @@ insertion = \"\"\"
   }
 \"\"\"
 if 'if (\"groups\" in raw)' not in content:
-    content = content.replace('  return result;', insertion + '\n  return result;')
-    with open(path, 'w') as f: f.write(content)
-    print('✓ Updated validate-ext.ts')
+    # แทรกไว้ข้างในฟังก์ชัน validateExtFields (หาจุดเริ่ม { แล้วแทรกหลังจุดนั้น)
+    target = 'function validateExtFields(raw: any, result: any, warn: any) {'
+    if target in content:
+        content = content.replace(target, target + insertion)
+        with open(path, 'w') as f: f.write(content)
+        print('✓ Updated validate-ext.ts')
+    else:
+        # Fallback: แทรกก่อน return ถ้าหาหัวฟังก์ชันไม่เจอ
+        content = content.replace('  return result;', insertion + '\n  return result;')
+        with open(path, 'w') as f: f.write(content)
+        print('✓ Updated validate-ext.ts (via fallback)')
 else:
     print('i validate-ext.ts already patched')
 "
@@ -62,7 +70,7 @@ else:
     print('i tmux-class.ts already patched')
 "
 
-# --- 4. เขียนไฟล์ fleet-init-scan.ts ใหม่ทั้งหมด (Full Slug & Domain) ---
+# --- 4. เขียนไฟล์ fleet-init-scan.ts (ลบ backslash ที่เกินออกทั้งหมด) ---
 cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
@@ -117,19 +125,19 @@ export async function cmdFleetInit() {
 
     const worktrees: { name: string; path: string; repo: string }[] = [];
     try {
-      const wtOut = await hostExec(\`ls -d \${parentDir}/\${repoName}.wt-* 2>/dev/null || true\`);
+      const wtOut = await hostExec(`ls -d ${parentDir}/${repoName}.wt-* 2>/dev/null || true`);
       const usedNames = new Set<string>();
       for (const wtPath of wtOut.split("\n").filter(Boolean)) {
         const wtBase = wtPath.split("/").pop()!;
-        const suffix = wtBase.replace(\`\${repoName}.wt-\`, "");
+        const suffix = wtBase.replace(`${repoName}.wt-`, "");
         const taskPart = suffix.replace(/^\d+-/, "");
-        let windowName = \`\${oracleName}-\${taskPart}\`;
-        if (usedNames.has(windowName)) windowName = \`\${oracleName}-\${suffix}\`; 
+        let windowName = `${oracleName}-${taskPart}`;
+        if (usedNames.has(windowName)) windowName = `${oracleName}-${suffix}`; 
         usedNames.add(windowName);
         worktrees.push({
           name: windowName,
           path: wtPath,
-          repo: \`\${domain}/\${org}/\${wtBase}\`, 
+          repo: `${domain}/${org}/${wtBase}`, 
         });
       }
     } catch { }
@@ -137,11 +145,11 @@ export async function cmdFleetInit() {
     oracleRepos.push({
       name: oracleName,
       path: repoPath,
-      repo: \`\${domain}/\${org}/\${repoName}\`, 
+      repo: `${domain}/${org}/${repoName}`, 
       worktrees,
     });
 
-    console.log(\`  found: \${oracleName.padEnd(15)} \${domain}/\${org}/\${repoName}\`);
+    console.log(`  found: ${oracleName.padEnd(15)} ${domain}/${org}/${repoName}`);
   }
 
   const sessionMap = new Map<string, { order: number; windows: FleetWindow[] }>();
@@ -150,19 +158,19 @@ export async function cmdFleetInit() {
     const key = group.session;
     if (!sessionMap.has(key)) sessionMap.set(key, { order: group.order, windows: [] });
     const sess = sessionMap.get(key)!;
-    sess.windows.push({ name: \`\${oracle.name}-oracle\`, repo: oracle.repo });
+    sess.windows.push({ name: `${oracle.name}-oracle`, repo: oracle.repo });
     for (const wt of oracle.worktrees) sess.windows.push({ name: wt.name, repo: wt.repo });
   }
 
-  console.log(\`\n  \x1b[36mWriting fleet configs...\x1b[0m\n`);
+  console.log(`\n  \x1b[36mWriting fleet configs...\x1b[0m\n`);
   const sorted = [...sessionMap.entries()].sort((a, b) => a[1].order - b[1].order);
 
   for (const [groupName, data] of sorted) {
     const paddedNum = String(data.order).padStart(2, "0");
-    const sessionName = \`\${paddedNum}-\${groupName}\`;
+    const sessionName = `${paddedNum}-${groupName}`;
     const config: FleetSession = { name: sessionName, windows: data.windows };
-    await Bun.write(join(fleetDir, \`\${sessionName}.json\`), JSON.stringify(config, null, 2) + "\n");
-    console.log(\`  \x1b[32m✓\x1b[0m \${sessionName}.json — \${data.windows.length} windows\`);
+    await Bun.write(join(fleetDir, `${sessionName}.json`), JSON.stringify(config, null, 2) + "\n");
+    console.log(`  \x1b[32m✓\x1b[0m ${sessionName}.json — ${data.windows.length} windows`);
   }
 
   if (oracleRepos.length > 0) {
@@ -170,12 +178,12 @@ export async function cmdFleetInit() {
     await Bun.write(join(fleetDir, "99-overview.json"), JSON.stringify(overviewConfig, null, 2) + "\n");
   }
 
-  console.log(\`\n  \x1b[32m\${sorted.length + 1} fleet configs written to fleet/\x1b[0m\`);
+  console.log(`\n  \x1b[32m${sorted.length + 1} fleet configs written to fleet/\x1b[0m`);
 }
 INNER_EOF
-echo "✓ Updated fleet-init-scan.ts"
+echo "✓ Updated fleet-init-scan.ts (No escaped backticks)"
 
-# --- 5. อัปเดต maw.config.json ---
+# --- 5. อัปเดต maw.config.json (Auto-Injection) ---
 python3 -c "
 import json, os
 path = os.path.expanduser('~/.config/maw/maw.config.json')
