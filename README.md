@@ -5,6 +5,7 @@ Project สำหรับเก็บ Patch และเครื่องม�
 ## Tools
 
 ### 1. `patch_maw.sh`
+- **Safe-Reset & Version Check**: ตรวจสอบเวอร์ชัน `package.json` และล้างสถานะไฟล์เป้าหมายด้วย `git checkout` ก่อนเริ่ม Patch เพื่อความแม่นยำสูงสุด
 สคริปต์สำหรับอัปเดตโค้ด `maw-js` ให้รองรับ:
 - **Full Repo Slugs**: รวม domain (เช่น `github.com`) ในการสแกน fleet
 - **Configurable Groups**: อนุญาตให้กำหนดลำดับและเซสชันผ่าน `maw.config.json`

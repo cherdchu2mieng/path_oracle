@@ -2,6 +2,7 @@
 
 # สคริปต์สำหรับอัปเดต maw-js: เวอร์ชันแก้ไขสมบูรณ์ (Final Fix)
 # รองรับ: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
+# ฟีเจอร์ใหม่: Safe-Reset (ล้างสถานะไฟล์ก่อน Patch) และ Version Verification
 # วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh <path_to_maw_js>
 
 export MAW_PATH="$1"
@@ -20,7 +21,39 @@ fi
 
 export MAW_PATH=$(realpath "$MAW_PATH")
 
-echo "🚀 Starting Final Patch for maw-js at $MAW_PATH..."
+echo "🚀 Starting Robust Patch for maw-js at $MAW_PATH..."
+
+# --- 0. Pre-flight Safety Checks (Version & Reset) ---
+echo "🔍 Verifying target environment..."
+
+# 0.1 Check Version in package.json
+if [ -f "$MAW_PATH/package.json" ]; then
+    MAW_VERSION=$(node -e "try { console.log(require('$MAW_PATH/package.json').version) } catch(e) { console.log('unknown') }")
+    echo "  - maw-js version: $MAW_VERSION"
+    if [[ ! $MAW_VERSION =~ ^26\.5 ]]; then
+        echo -e "  \x1b[33m⚠ Warning: This patch is tested for v26.5.x. Proceeding with caution...\x1b[0m"
+    else
+        echo "  ✓ Version compatible."
+    fi
+else
+    echo -e "  \x1b[31mError: package.json not found in $MAW_PATH\x1b[0m"
+    exit 1
+fi
+
+# 0.2 Safe-Reset via Git (Clean the baseline)
+if [ -d "$MAW_PATH/.git" ]; then
+    echo "🧹 Safe-Reset: Restoring target files to origin state..."
+    git -C "$MAW_PATH" checkout \
+        src/config/types.ts \
+        src/config/validate-ext.ts \
+        src/core/transport/tmux-class.ts \
+        src/cli/top-aliases.ts \
+        src/cli/cmd-version.ts \
+        src/commands/plugins/fleet/fleet-init-scan.ts 2>/dev/null
+    echo "  ✓ Baseline is clean."
+else
+    echo -e "  \x1b[33m⚠ Note: Target is not a git repo. Skipping Safe-Reset.\x1b[0m"
+fi
 
 # --- 1. Patch src/config/types.ts ---
 python3 - <<'PY_EOF'
