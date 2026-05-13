@@ -4,7 +4,7 @@
 # รองรับ: Full Slugs, Configurable Groups, Auto-resize Tmux และ Auto-Config
 # วิธีใช้: chmod +x patch_maw.sh && ./patch_maw.sh <path_to_maw_js>
 
-MAW_PATH="$1"
+export MAW_PATH="$1"
 
 if [ -z "$MAW_PATH" ]; then
     echo -e "\x1b[31mError: Missing maw-js path.\x1b[0m"
@@ -18,14 +18,14 @@ if [ ! -d "$MAW_PATH" ]; then
     exit 1
 fi
 
-MAW_PATH=$(realpath "$MAW_PATH")
+export MAW_PATH=$(realpath "$MAW_PATH")
 
 echo "🚀 Starting Final Patch for maw-js at $MAW_PATH..."
 
 # --- 1. Patch src/config/types.ts ---
-python3 - <<PY_EOF
+python3 - <<'PY_EOF'
 import os
-path = os.path.join('$MAW_PATH', 'src/config/types.ts')
+path = os.path.join(os.environ['MAW_PATH'], 'src/config/types.ts')
 content = open(path).read()
 if 'groups?:' not in content:
     field = '  /** Grouping and ordering for fleet initialization */\n  groups?: Record<string, { session: string; order: number }>;'
@@ -37,49 +37,106 @@ else:
 PY_EOF
 
 # --- 2. Patch src/config/validate-ext.ts ---
-python3 - <<PY_EOF
-import os
-path = os.path.join('$MAW_PATH', 'src/config/validate-ext.ts')
+python3 - <<'PY_EOF'
+import os, re
+path = os.path.join(os.environ['MAW_PATH'], 'src/config/validate-ext.ts')
 content = open(path).read()
 insertion = """
-  if (\\"groups\\" in raw) {
-    if (raw.groups && typeof raw.groups === \\"object\\" && !Array.isArray(raw.groups)) {
+  if ("groups" in raw) {
+    if (raw.groups && typeof raw.groups === "object" && !Array.isArray(raw.groups)) {
       result.groups = raw.groups;
     } else {
-      warn(\\"groups\\", \\"must be an object\\");
+      warn("groups", "must be an object");
     }
   }
 """
 if 'if ("groups" in raw)' not in content:
-    target = 'function validateExtFields(raw: any, result: any, warn: any) {'
-    if target in content:
-        content = content.replace(target, target + insertion)
-        open(path, 'w').write(content)
+    # Match function signature regardless of formatting/types
+    pattern = r'function\s+validateExtFields\s*\([\s\S]*?\)\s*(?::\s*[\w\s<>\[\],]+)?\s*\{'
+    match = re.search(pattern, content)
+    if match:
+        content = content[:match.end()] + insertion + content[match.end():]
+        with open(path, 'w') as f: f.write(content)
         print('✓ Updated validate-ext.ts')
-    else:
+    elif '  return result;' in content:
         content = content.replace('  return result;', insertion + '\n  return result;')
-        open(path, 'w').write(content)
+        with open(path, 'w') as f: f.write(content)
         print('✓ Updated validate-ext.ts (via fallback)')
+    else:
+        print('X Could not find target in validate-ext.ts')
 else:
     print('i validate-ext.ts already patched')
 PY_EOF
 
 # --- 3. Patch src/core/transport/tmux-class.ts ---
-python3 - <<PY_EOF
+python3 - <<'PY_EOF'
 import os
-path = os.path.join('$MAW_PATH', 'src/core/transport/tmux-class.ts')
+path = os.path.join(os.environ['MAW_PATH'], 'src/core/transport/tmux-class.ts')
 content = open(path).read()
-if '"window-size", "largest"' not in content:
-    old = 'await this.setOption(name, "renumber-windows", "on");'
-    new = old + '\n    await this.setOption(name, "window-size", "largest");'
-    content = content.replace(old, new)
+if '"window-size", "latest"' not in content:
+    if '"window-size", "largest"' in content:
+        content = content.replace('"window-size", "largest"', '"window-size", "latest"')
+        print('✓ Updated tmux-class.ts (largest -> latest)')
+    else:
+        old = 'await this.setOption(name, "renumber-windows", "on");'
+        new = old + '\n    await this.setOption(name, "window-size", "latest");'
+        content = content.replace(old, new)
+        print('✓ Updated tmux-class.ts (added latest)')
     open(path, 'w').write(content)
-    print('✓ Updated tmux-class.ts')
 else:
-    print('i tmux-class.ts already patched')
+    print('i tmux-class.ts already patched with latest')
 PY_EOF
 
-# --- 4. เขียนไฟล์ fleet-init-scan.ts ---
+# --- 4. Patch src/cli/top-aliases.ts (Support maw wake all) ---
+python3 - <<'PY_EOF'
+import os, re
+path = os.path.join(os.environ['MAW_PATH'], 'src/cli/top-aliases.ts')
+content = open(path).read()
+wake_all_logic = """
+        if (oracle === "all") {
+            const { cmdWakeAll } = await import("../commands/shared/fleet-wake");
+            await cmdWakeAll({ all: !!flags["--all-local"] });
+            return;
+        }
+"""
+if 'if (oracle === "all")' not in content:
+    # Look for the start of cmdWake logic
+    # and find where 'oracle' is defined from positional[0]
+    pattern = r'(const\s+oracle\s*=\s*positional\[0\]\s*;)'
+    match = re.search(pattern, content)
+    if match:
+        # Inject wake all logic right after oracle is defined
+        content = content[:match.end()] + wake_all_logic + content[match.end():]
+        open(path, 'w').write(content)
+        print('✓ Updated top-aliases.ts (Added wake all support)')
+    else:
+        print('X Could not find oracle definition in top-aliases.ts')
+else:
+    print('i top-aliases.ts already supports wake all')
+PY_EOF
+
+# --- 5. Patch src/cli/cmd-version.ts (Add patched indicator) ---
+python3 - <<'PY_EOF'
+import os
+path = os.path.join(os.environ['MAW_PATH'], 'src/cli/cmd-version.ts')
+content = open(path).read()
+if ' (patched 🌊)' not in content:
+    # Use the specific template literal string
+    target = 'built ${buildDate}" : ""}`'
+    if target in content:
+        content = content.replace(target, target + ' + " (patched 🌊)"')
+        open(path, 'w').write(content)
+        print('✓ Updated cmd-version.ts (Added patched indicator)')
+    else:
+        # Fallback for different formatting
+        content = content.replace('return `maw v', 'return `maw v(patched 🌊) ')
+        open(path, 'w').write(content)
+        print('✓ Updated cmd-version.ts (Added patched indicator via fallback)')
+else:
+    print('i cmd-version.ts already has patched indicator')
+PY_EOF
+
+# --- 6. เขียนไฟล์ fleet-init-scan.ts ---
 cat << 'INNER_EOF' > "$MAW_PATH/src/commands/plugins/fleet/fleet-init-scan.ts"
 import { join } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
@@ -192,8 +249,8 @@ export async function cmdFleetInit() {
 INNER_EOF
 echo "✓ Updated fleet-init-scan.ts (No escaped backticks)"
 
-# --- 5. อัปเดต maw.config.json ---
-python3 - <<PY_EOF
+# --- 7. อัปเดต maw.config.json ---
+python3 - <<'PY_EOF'
 import json, os
 path = os.path.expanduser('~/.config/maw/maw.config.json')
 data = json.load(open(path)) if os.path.exists(path) else {}

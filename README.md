@@ -8,7 +8,9 @@ Project สำหรับเก็บ Patch และเครื่องม�
 สคริปต์สำหรับอัปเดตโค้ด `maw-js` ให้รองรับ:
 - **Full Repo Slugs**: รวม domain (เช่น `github.com`) ในการสแกน fleet
 - **Configurable Groups**: อนุญาตให้กำหนดลำดับและเซสชันผ่าน `maw.config.json`
-- **Auto-resize Tmux**: แก้ไขปัญหา "จุดไข่ปลา `...`" ด้านข้างหน้าจอ โดยการตั้งค่า `window-size largest` อัตโนมัติ
+- **Auto-resize Tmux (Latest)**: แก้ไขปัญหา "จุดไข่ปลา `...`" ด้านข้างหน้าจอ (โดยเฉพาะเมื่อต่อ Projector) โดยการตั้งค่า `window-size latest` อัตโนมัติ
+- **CLI Wake All Support**: แทรก logic `maw wake all` เข้าไปในระบบอัตโนมัติ (แม้จะเป็นเวอร์ชันใหม่จาก GitHub)
+- **Version Integrity**: เพิ่มเครื่องหมาย `(patched 🌊)` ใน `maw --version` เพื่อความโปร่งใส
 
 #### การติดตั้งและอัปเดต (Installation & Update)
 ```bash
@@ -18,10 +20,18 @@ chmod +x patch_maw.sh
 
 > **Note**: เมื่อรันสคริปต์เสร็จ ระบบจะทำการ `bun run build` ให้โดยอัตโนมัติเพื่อให้โค้ดใหม่มีผลทันที
 
+#### การตรวจสอบเวอร์ชัน (Verification)
+หลังจากการ Patch สำเร็จ เมื่อรันคำสั่งต่อไปนี้:
+```bash
+maw --version
+```
+ควรจะแสดงผลลัพธ์ที่มีคำว่า **`(patched 🌊)`** เช่น:
+`maw v(patched 🌊) 26.5.2 (020e5ff5) built 2026-05-04 Mon 16:35`
+
 #### การทำให้การเปลี่ยนแปลงมีผล (Restart)
-เพื่อให้การตั้งค่าหน้าจอแบบใหม่ (Auto-resize) ทำงานกับเซสชันเดิมที่เปิดค้างไว้:
+เพื่อให้การตั้งค่าหน้าจอแบบใหม่ (Latest) ทำงานกับเซสชันเดิมที่เปิดค้างไว้:
 1. ปิดเซสชันเดิม: `maw kill <session_name>` หรือ `maw kill --all`
-2. เริ่มเซสชันใหม่: `maw wake <oracle_name>`
+2. เริ่มเซสชันใหม่: `maw wake <oracle_name>` หรือ `maw wake all`
 
 ---
 
@@ -45,7 +55,7 @@ maw oracle scan
 maw fleet init
 ```
 *   **หน้าที่**: ลบไฟล์เก่าใน `~/.config/maw/fleet/` และสร้างไฟล์ใหม่โดยอิงจาก `groups` ใน `maw.config.json`
-*   **ผลลัพธ์**: จะได้ไฟล์เลขลำดับ เช่น `01-gemi.json`, `02-infographic.json`
+*   **ผลลัพธ์**: จะได้ไฟล์เลขลำดับ เช่น `01-pulse.json`, `02-hermes.json`
 
 ### 3. จัดระเบียบเลข (ทางเลือก)
 ```bash
